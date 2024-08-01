@@ -16,10 +16,56 @@
         (mongodb_version is not defined
          or mongodb_repository[mongodb_major_version] is not defined))
 
+- name: Ajouter le dépôt de sécurité focal-security
+  copy:
+    content: "deb http://security.ubuntu.com/ubuntu focal-security main\n"
+    dest: /etc/apt/sources.list.d/focal-security.list
+  when:
+    - mongodb_major_version is version_compare('5.0', '<')
+    - ansible_distribution_version == '22.04'
+
+- name: Mettre à jour la liste des paquets
+  apt:
+    update_cache: yes
+
+- name: Installer libssl1.1
+  apt:
+    name: libssl1.1
+    state: present
+  when:
+    - mongodb_major_version is version_compare('5.0', '<')
+    - ansible_distribution_version == '22.04'
+
+- name: Supprimer le dépôt focal-security
+  file:
+    path: /etc/apt/sources.list.d/focal-security.list
+    state: absent
+  when:
+    - mongodb_major_version is version_compare('5.0', '<')
+    - ansible_distribution_version == '22.04'
+
 - name: Import gpg key for repo
   apt_key:
     url: https://www.mongodb.org/static/pgp/server-{{ mongodb_major_version }}.asc
     state: present
+
+- name: Check if MongoDB repository file exists
+  stat:
+    path: /etc/apt/sources.list.d/mongodb-org-{{ mongodb_major_version }}.list
+  register: mongodb_repo_file
+
+- name: Ajouter le dépôt MongoDB
+  apt_repository:
+    repo: "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/{{ mongodb_major_version }} multiverse"
+    filename: "mongodb-org-{{ mongodb_major_version }}"
+  when:
+    - mongodb_major_version is version_compare('5.0', '<')
+    - ansible_distribution_version == '22.04'
+    - not mongodb_repo_file.stat.exists
+
+- name: Mettre à jour la liste des paquets après ajout de MongoDB
+  apt:
+    update_cache: yes
 
 - name: Add APT repository
   apt_repository:
